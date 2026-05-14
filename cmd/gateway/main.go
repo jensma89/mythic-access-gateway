@@ -15,7 +15,7 @@ import (
 
 func main() {
 	// Load environment variables from .env file
-	if err .= godotenv.Load(); erro != nil {
+	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, reading from environment")
 	}
 
@@ -35,4 +35,7 @@ func main() {
 	}
 
 	log.Printf("Listening on port %s", port)
+	if err := http.ListenAndServe(":"+port, mux); err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
 }
