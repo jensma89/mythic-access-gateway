@@ -6,6 +6,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -99,7 +100,7 @@ VALUES (?, ?, ?, ?)`,
 }
 
 // VerifyHandler handles GET /verify?token=<token>.
-// On success it creates the shadow account in FastAPI and emails the API key.
+// On success, it creates the shadow account in FastAPI and emails the API key.
 func VerifyHandler(db *sql.DB, emailCfg email.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := strings.TrimSpace(r.URL.Query().Get("token"))
@@ -122,7 +123,7 @@ FROM external_users
 WHERE verification_token = ?`,
 			token).Scan(&userID, &email_, &name, &expires, &verified)
 
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			jsonError(w, "invalid or expired token", http.StatusBadRequest)
 			return
 		}
@@ -160,8 +161,8 @@ WHERE verification_token = ?`,
 UPDATE external_users
 SET verified = 1, 
     api_key_hash = ?, 
-    verification_token ='',
-    verification_expires = 0,
+    verification_token = '',
+    verification_expires = 0
 WHERE id = ?`, keyHash, userID,
 		)
 		if err != nil {
@@ -171,7 +172,7 @@ WHERE id = ?`, keyHash, userID,
 
 		// Send the API key by email
 		if err := email.SendAPIKey(emailCfg, email_, name, apiKey); err != nil {
-			jsonError(2, "failed to send API key email", http.StatusInternalServerError)
+			jsonError(w, "failed to send API key email", http.StatusInternalServerError)
 			return
 		}
 
@@ -187,7 +188,7 @@ func jsonError(w http.ResponseWriter, msg string, status int) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
 
-func jsonOk(w http.ResponseWriter, msg string) {
+func jsonOK(w http.ResponseWriter, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"message": msg})
